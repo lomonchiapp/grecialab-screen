@@ -1,5 +1,4 @@
 import { Box, Typography } from "@mui/material";
-import PropTypes from "prop-types";
 import { Timestamp } from "firebase/firestore";
 import { useScreenState } from "../../global/useScreenState";
 
@@ -77,10 +76,6 @@ export const BillingTicket = ({ ticket }) => {
         </Box>
     </Box>
   );
-};
-
-BillingTicket.propTypes = {
-  ticket: PropTypes.object.isRequired,
 };
 
 const styles = {

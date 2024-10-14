@@ -1,6 +1,5 @@
 import React from "react";
 import { Box, Typography } from "@mui/material";
-import PropTypes from "prop-types";
 
 export const QueueItem = ({ticket, index}) => {
   return (
@@ -11,11 +10,6 @@ export const QueueItem = ({ticket, index}) => {
     </Box>
   );
 };
-
-QueueItem.propTypes = {
-    ticket: PropTypes.object.isRequired,
-    index: PropTypes.number.isRequired,
-    };
 
 const styles = {
     listItem: {
