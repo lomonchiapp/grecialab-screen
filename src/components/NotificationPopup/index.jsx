@@ -1,5 +1,4 @@
 import { Button,Drawer, Typography } from '@mui/material';
-import PropTypes from 'prop-types';
 
 export const NotificationPopup = ({open, setOpen, children}) => {
 
@@ -29,10 +28,4 @@ export const NotificationPopup = ({open, setOpen, children}) => {
       </div>
     </Drawer>
   );
-};
-
-NotificationPopup.propTypes = {
-  open: PropTypes.bool.isRequired,
-  setOpen: PropTypes.func.isRequired,
-  children: PropTypes.node.isRequired
 };

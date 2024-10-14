@@ -1,7 +1,6 @@
 import React from 'react'
 import {Box, Typography} from '@mui/material'
 import Grid from '@mui/material/Grid2'
-import PropTypes from 'prop-types'
 import { CaretRight } from '@phosphor-icons/react'
 import { useScreenState } from '../../global/useScreenState'
 
@@ -46,10 +45,6 @@ export const ToDoctor = ({notification}) => {
         </Box>
     </Grid>
   )
-}
-
-ToDoctor.propTypes = {
-    notification: PropTypes.object.isRequired,
 }
 
 const styles = {
