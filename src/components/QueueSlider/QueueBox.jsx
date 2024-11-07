@@ -23,9 +23,13 @@ export const QueueBox = ({ queue }) => {
   
   const ticketInProcess = tickets.find(
     (ticket) =>
-      ticket.services?.some(
-        (service) =>
-          service.status === "processing" && service.id === queue.serviceId
+      ticket.queues?.some(
+        (queueItem) =>
+          queueItem.serviceId === queue.serviceId &&
+          ticket.services?.some(
+            (service) =>
+              service.status === "processing" && service.id === queueItem.serviceId
+          )
       )
   );
 
