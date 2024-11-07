@@ -14,12 +14,22 @@ export const QueueBox = ({ queue }) => {
   const { tickets, subscribeToTickets, services } = useScreenState();
   const ticketsInQueue = tickets.filter(
     (ticket) =>
-      ticket.status === "inQueue" && ticket.service === queue.serviceId
+      ticket.status === "inQueue" &&
+      ticket.services.some(
+        (service) =>
+          service.id === queue.serviceId && service.status !== "finished"
+      )
   );
+  
   const ticketInProcess = tickets.find(
     (ticket) =>
-      ticket.status === "processing" && ticket.service === queue.serviceId
+      ticket.services?.some(
+        (service) =>
+          service.status === "processing" && service.id === queue.serviceId
+      )
   );
+
+
 
   useEffect(() => {
     // Map service IDs to service names

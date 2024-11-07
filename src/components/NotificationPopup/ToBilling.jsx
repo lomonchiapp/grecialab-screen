@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React from "react";
 import { Box, Typography } from "@mui/material";
 import Grid from "@mui/material/Grid2";
@@ -5,21 +6,19 @@ import { CaretRight } from "@phosphor-icons/react";
 import { useScreenState } from "../../global/useScreenState";
 
 export const ToBilling = ({ notification }) => {
-  const { tickets, services } = useScreenState();
+  const { tickets } = useScreenState();
 
-  const ticket = tickets.find((ticket) => ticket.id === notification.ticket);
-  
-  const serviceName = (serviceId) => {
-    const service = services.find((service) => service.id === serviceId);
-    return service ? service.name : "Unknown service";
-  }
+  //Busca el ticket que corresponde a la notificación
+  const ticket = tickets?.find(
+    (ticket) => ticket.id === (notification.ticketId || notification.ticket)
+  );
 
   return (
     <Grid sx={styles.notification}>
       <Box sx={styles.ticketBox}>
         <Typography sx={styles.ticketLabel}>Ticket #:</Typography>
-        <Typography sx={styles.ticketCode}>{ticket.ticketCode}</Typography>
-        <Typography sx={styles.patientName}>{ticket.patientName}</Typography>
+        <Typography sx={styles.ticketCode}>{ticket?.ticketCode}</Typography>
+        <Typography sx={styles.patientName}>{ticket?.patientName}</Typography>
       </Box>
       <Box>
         <img style={styles.walkingIcon} src="walking.png" alt="walking" />
@@ -30,15 +29,14 @@ export const ToBilling = ({ notification }) => {
       </Box>
       <Box sx={styles.billingBox}>
         <Typography sx={styles.billingLabel}>
-          {ticket.status === "processing"
+          {notification.service
             ? "A puesto de servicio"
             : "A puesto de facturación"}
         </Typography>
         <Typography sx={styles.billingPosition}>
-            {ticket.status === "processing"
-                ? serviceName(ticket.service)
-                : ticket.billingPosition.name
-            }
+          {notification.service
+            ? notification?.service.name
+            : notification?.billingPosition.name}
         </Typography>
       </Box>
     </Grid>
@@ -86,7 +84,7 @@ const styles = {
     borderRadius: "1rem",
     mr: 5,
   },
-  
+
   ticketCode: {
     fontSize: 65,
     fontFamily: "inherit",

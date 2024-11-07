@@ -1,10 +1,11 @@
+/* eslint-disable react/prop-types */
 import { Box, Typography } from "@mui/material";
 import { Timestamp } from "firebase/firestore";
 import { useScreenState } from "../../global/useScreenState";
+import zIndex from "@mui/material/styles/zIndex";
 
 export const BillingTicket = ({ ticket }) => {
     const {services} = useScreenState();
-    const date = new Date(ticket.createdAt);
 
     const timeSince = (date) => {
         let parsedDate;
@@ -43,11 +44,6 @@ export const BillingTicket = ({ ticket }) => {
         return Math.floor(seconds) + " segs";
       };
 
-      const serviceName = (serviceId) => {
-        const service = services.find((service) => service.id === serviceId);
-        return service ? service.name : "Unknown service";
-      }
-
   return (
     <Box sx={ticket.status === 'billing' ? styles.ticketContainerBilling : styles.ticketContainer}>
       {ticket.status === 'billing' && (
@@ -69,7 +65,6 @@ export const BillingTicket = ({ ticket }) => {
         </Box>
         <Box>
         <Typography sx={styles.patientName}>{ticket.patientName}</Typography>
-        <Typography sx={styles.service}>{serviceName(ticket.service)}</Typography>
         </Box>
         <Box sx={styles.timeBox}>
       <Typography sx={styles.timeAgo}>hace {timeSince(ticket.createdAt)}</Typography>
@@ -160,7 +155,8 @@ const styles = {
     },
     billingPosition:{
       position: "absolute",
-      top: 25,
+      bottom: 0,
+      zIndex: 3,
       right: 0,
       backgroundColor: "#78dd87",
       border: "1px solid #048817",

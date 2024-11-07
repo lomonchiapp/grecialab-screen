@@ -18,7 +18,8 @@ const styles = {
         justifyContent: "space-between",
         alignItems: "center",
         padding: "5px",
-        minWidth: "80px",
+        minWidth: "120px",
+
     },
     ticketCode: {
         fontSize: 18,

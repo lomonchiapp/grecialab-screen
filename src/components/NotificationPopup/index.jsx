@@ -1,4 +1,5 @@
-import { Button,Drawer, Typography } from '@mui/material';
+/* eslint-disable react/prop-types */
+import {Drawer} from '@mui/material';
 
 export const NotificationPopup = ({open, setOpen, children}) => {
 

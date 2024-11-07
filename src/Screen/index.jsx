@@ -15,7 +15,7 @@ export const Screen = () => {
       }}
       container
     >
-      <Grid2 size={{ xs: 2, xl:3 }}>
+      <Grid2 size={{ xs: 2, xl:2 }}>
         <Box
           sx={{
             height: "100vh",
@@ -24,7 +24,7 @@ export const Screen = () => {
           <BillingList />
         </Box>
       </Grid2>
-      <Grid2 size={{ xs: 10, xl:9 }}>
+      <Grid2 size={{ xs: 10, xl:10 }}>
         <VideoPlayer />
         <Box sx={{ px: 3, pt: 1, pb: 1 }}>
           <QueueSlider />

@@ -1,4 +1,4 @@
-import React from 'react'
+/* eslint-disable react/prop-types */
 import {Box, Typography} from '@mui/material'
 import Grid from '@mui/material/Grid2'
 import { CaretRight } from '@phosphor-icons/react'
@@ -6,14 +6,10 @@ import { useScreenState } from '../../global/useScreenState'
 
 export const ToDoctor = ({notification}) => {
 
-    const {tickets, services} = useScreenState()
+    const {tickets } = useScreenState()
 
-    const serviceName = (serviceId) => {
-        const service = services.find((service) => service.id === serviceId);
-        return service ? service.name : "Unknown service";
-      }
 
-    const ticket = tickets.find((ticket) => ticket.id === notification.ticket);
+    const ticket = tickets.find((ticket) => ticket.id === notification.ticketId);
 
 
   return (
