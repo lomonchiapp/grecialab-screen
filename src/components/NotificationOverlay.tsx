@@ -20,42 +20,62 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
   const speechSynthesis = useRef<SpeechSynthesis | null>(null);
   const audioContext = useRef<AudioContext | null>(null);
   const [speechDuration, setSpeechDuration] = useState(0);
+  const [voicesLoaded, setVoicesLoaded] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       if ('speechSynthesis' in window) {
         speechSynthesis.current = window.speechSynthesis;
+        
+        const loadVoices = () => {
+          const voices = speechSynthesis.current!.getVoices();
+          if (voices.length > 0) {
+            setVoicesLoaded(true);
+          }
+        };
+
+        speechSynthesis.current.onvoiceschanged = loadVoices;
+        loadVoices();
       }
-      audioContext.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
   }, []);
 
-  const playChime = () => {
-    if (audioContext.current) {
-      audioContext.current.resume().then(() => {
-        const oscillator = audioContext.current!.createOscillator();
-        const gainNode = audioContext.current!.createGain();
+  const initializeAudioContext = () => {
+    if (!audioContext.current) {
+      audioContext.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    return audioContext.current.state === 'suspended' ? audioContext.current.resume() : Promise.resolve();
+  };
+
+  const playChime = async () => {
+    try {
+      await initializeAudioContext();
+      if (audioContext.current) {
+        const oscillator = audioContext.current.createOscillator();
+        const gainNode = audioContext.current.createGain();
 
         oscillator.connect(gainNode);
-        gainNode.connect(audioContext.current!.destination);
+        gainNode.connect(audioContext.current.destination);
 
         oscillator.type = 'sine';
-        oscillator.frequency.setValueAtTime(880, audioContext.current!.currentTime); // A5
-        oscillator.frequency.setValueAtTime(1318.5, audioContext.current!.currentTime + 0.1); // E6
-        oscillator.frequency.setValueAtTime(1760, audioContext.current!.currentTime + 0.2); // A6
+        oscillator.frequency.setValueAtTime(880, audioContext.current.currentTime); // A5
+        oscillator.frequency.setValueAtTime(1318.5, audioContext.current.currentTime + 0.1); // E6
+        oscillator.frequency.setValueAtTime(1760, audioContext.current.currentTime + 0.2); // A6
 
-        gainNode.gain.setValueAtTime(0, audioContext.current!.currentTime);
-        gainNode.gain.linearRampToValueAtTime(0.5, audioContext.current!.currentTime + 0.01);
-        gainNode.gain.linearRampToValueAtTime(0, audioContext.current!.currentTime + 0.5);
+        gainNode.gain.setValueAtTime(0, audioContext.current.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.5, audioContext.current.currentTime + 0.01);
+        gainNode.gain.linearRampToValueAtTime(0, audioContext.current.currentTime + 0.5);
 
         oscillator.start();
-        oscillator.stop(audioContext.current!.currentTime + 0.5);
-      });
+        oscillator.stop(audioContext.current.currentTime + 0.5);
+      }
+    } catch (error) {
+      console.error('Error playing chime:', error);
     }
   };
 
   const speakWithPause = (text: string, ticketCode: string) => {
-    if (speechSynthesis.current) {
+    if (speechSynthesis.current && voicesLoaded) {
       const parts = [
         { text: `Atención. Ticket número ${ticketCode}.`, pause: 1000 },
         { text: `Repito, ${ticketCode}.`, pause: 500 },
@@ -77,12 +97,14 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
           utterance.lang = 'es-MX';
           
           const voices = speechSynthesis.current!.getVoices();
-          const spanishFemaleVoice = voices.find(voice => 
-            voice.lang.startsWith('es-MX') && voice.name.includes('female')
-          );
+          const spanishVoice = voices.find(voice => 
+            voice.lang.startsWith('es') && (voice.name.includes('female') || voice.name.toLowerCase().includes('spanish'))
+          ) || voices.find(voice => voice.lang.startsWith('es'));
           
-          if (spanishFemaleVoice) {
-            utterance.voice = spanishFemaleVoice;
+          if (spanishVoice) {
+            utterance.voice = spanishVoice;
+          } else {
+            console.warn('No Spanish voice found. Using default voice.');
           }
 
           utterance.rate = 1.0;
@@ -90,29 +112,40 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
 
           if (index === 0) utterance.onstart = () => setIsSpeaking(true);
           if (index === parts.length - 1) utterance.onend = () => setIsSpeaking(false);
-          utterance.onerror = () => setIsSpeaking(false);
+          utterance.onerror = (event) => {
+            console.error('Speech synthesis error:', event);
+            setIsSpeaking(false);
+          };
 
           speechSynthesis.current!.speak(utterance);
         }, totalDelay);
 
         totalDelay += part.pause;
       });
+    } else {
+      console.error('Speech synthesis not available or voices not loaded');
     }
   };
 
   useEffect(() => {
-    if (isVisible && notification && speechSynthesis.current) {
-      playChime();
-      const text = `${notification.ticket.patientName}, por favor diríjase a ${notification.service ? notification.service.name : notification.billingPosition?.name}.`;
-      speakWithPause(text, notification.ticket.ticketCode);
-    }
+    if (isVisible && notification && speechSynthesis.current && voicesLoaded) {
+      const handleUserInteraction = async () => {
+        await playChime();
+        const text = `${notification.ticket.patientName}, por favor diríjase a ${notification.service ? notification.service.name : notification.billingPosition?.name}.`;
+        speakWithPause(text, notification.ticket.ticketCode);
+        document.removeEventListener('click', handleUserInteraction);
+      };
 
-    return () => {
-      if (speechSynthesis.current) {
-        speechSynthesis.current.cancel();
-      }
-    };
-  }, [isVisible, notification]);
+      document.addEventListener('click', handleUserInteraction);
+
+      return () => {
+        document.removeEventListener('click', handleUserInteraction);
+        if (speechSynthesis.current) {
+          speechSynthesis.current.cancel();
+        }
+      };
+    }
+  }, [isVisible, notification, voicesLoaded]);
 
   useEffect(() => {
     if (isVisible && speechDuration > 0) {
@@ -124,13 +157,13 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
     }
   }, [isVisible, speechDuration, onNotificationComplete]);
 
-  const toggleSpeech = () => {
+  const toggleSpeech = async () => {
     if (speechSynthesis.current) {
       if (isSpeaking) {
         speechSynthesis.current.cancel();
         setIsSpeaking(false);
-      } else if (notification) {
-        playChime();
+      } else if (notification && voicesLoaded) {
+        await playChime();
         const text = `${notification.ticket.patientName}, por favor diríjase a ${notification.service ? notification.service.name : notification.billingPosition?.name}.`;
         speakWithPause(text, notification.ticket.ticketCode);
       }
@@ -207,7 +240,6 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
                 </span>
               </div>
               
-
               <button
                 onClick={toggleSpeech}
                 className="mt-4 p-2 absolute bottom-1 right-1 bg-white bg-opacity-20 rounded-full hover:bg-opacity-30 transition-colors duration-200"
