@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Notification } from '@/types/types';
 import { ArrowRight, Volume2, VolumeX } from 'lucide-react';
+import { useSpeechSynthesis } from '@/hooks/useSpeechSynthesis';
 
 interface NotificationOverlayProps {
   notification: Notification | null;
@@ -17,37 +18,21 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
   onExited
 }) => {
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const speechSynthesis = useRef<SpeechSynthesis | null>(null);
   const audioContext = useRef<AudioContext | null>(null);
   const [speechDuration, setSpeechDuration] = useState(0);
-  const [voicesLoaded, setVoicesLoaded] = useState(false);
+  const retryCount = useRef(0);
+  const maxRetries = 3;
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      if ('speechSynthesis' in window) {
-        speechSynthesis.current = window.speechSynthesis;
-        
-        const loadVoices = () => {
-          const voices = speechSynthesis.current!.getVoices();
-          if (voices.length > 0) {
-            setVoicesLoaded(true);
-          }
-        };
+  const { speak, cancel, speaking } = useSpeechSynthesis();
 
-        speechSynthesis.current.onvoiceschanged = loadVoices;
-        loadVoices();
-      }
-    }
-  }, []);
-
-  const initializeAudioContext = () => {
+  const initializeAudioContext = useCallback(() => {
     if (!audioContext.current) {
       audioContext.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
     return audioContext.current.state === 'suspended' ? audioContext.current.resume() : Promise.resolve();
-  };
+  }, []);
 
-  const playChime = async () => {
+  const playChime = useCallback(async () => {
     try {
       await initializeAudioContext();
       if (audioContext.current) {
@@ -72,101 +57,87 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
     } catch (error) {
       console.error('Error playing chime:', error);
     }
-  };
+  }, [initializeAudioContext]);
 
-  const speakWithPause = (text: string, ticketCode: string) => {
-    if (speechSynthesis.current && voicesLoaded) {
-      const parts = [
-        { text: `Atención. Ticket número ${ticketCode}.`, pause: 1000 },
-        { text: `Repito, ${ticketCode}.`, pause: 500 },
-        { text: text, pause: 0 }
-      ];
+  const speakWithPause = useCallback((text: string, ticketCode: string) => {
+    const parts = [
+      { text: `Atención. Número de ticket ${ticketCode},`, pause: 1000 },
+      { text: `Repito, ${ticketCode},`, pause: 300 },
+      { text: text, pause: 0 }
+    ];
 
-      let totalDuration = 0;
-      parts.forEach(part => {
-        const utterance = new SpeechSynthesisUtterance(part.text);
-        totalDuration += utterance.text.length * 50 + part.pause; // Estimate 50ms per character
-      });
+    let totalDuration = 0;
+    const speakPart = (index: number) => {
+      if (index >= parts.length) {
+        setIsSpeaking(false);
+        retryCount.current = 0;
+        return;
+      }
 
-      setSpeechDuration(totalDuration);
-
-      let totalDelay = 0;
-      parts.forEach((part, index) => {
-        setTimeout(() => {
-          const utterance = new SpeechSynthesisUtterance(part.text);
-          utterance.lang = 'es-MX';
-          
-          const voices = speechSynthesis.current!.getVoices();
-          const spanishVoice = voices.find(voice => 
-            voice.lang.startsWith('es') && (voice.name.includes('female') || voice.name.toLowerCase().includes('spanish'))
-          ) || voices.find(voice => voice.lang.startsWith('es'));
-          
-          if (spanishVoice) {
-            utterance.voice = spanishVoice;
+      const part = parts[index];
+      speak(part.text, {
+        onEnd: () => {
+          setTimeout(() => speakPart(index + 1), part.pause);
+        },
+        onError: (event) => {
+          console.error('Speech synthesis error:', event);
+          setIsSpeaking(false);
+        },
+        onInterrupted: () => {
+          if (retryCount.current < maxRetries) {
+            retryCount.current++;
+            console.log(`Speech interrupted. Retrying... (Attempt ${retryCount.current})`);
+            setTimeout(() => speakPart(index), 1000);
           } else {
-            console.warn('No Spanish voice found. Using default voice.');
-          }
-
-          utterance.rate = 1.0;
-          utterance.pitch = 0.9;
-
-          if (index === 0) utterance.onstart = () => setIsSpeaking(true);
-          if (index === parts.length - 1) utterance.onend = () => setIsSpeaking(false);
-          utterance.onerror = (event) => {
-            console.error('Speech synthesis error:', event);
+            console.error('Max retries reached. Stopping speech synthesis.');
             setIsSpeaking(false);
-          };
-
-          speechSynthesis.current!.speak(utterance);
-        }, totalDelay);
-
-        totalDelay += part.pause;
+            retryCount.current = 0;
+          }
+        }
       });
-    } else {
-      console.error('Speech synthesis not available or voices not loaded');
+
+      totalDuration += part.text.length * 60 + part.pause; // Increased duration for slower speech
+    };
+
+    setIsSpeaking(true);
+    speakPart(0);
+    setSpeechDuration(totalDuration);
+  }, [speak]);
+
+  const playNotification = useCallback(async () => {
+    if (notification) {
+      await playChime();
+      await new Promise(resolve => setTimeout(resolve, 500)); // 500ms pause
+      const text = `${notification.ticket.patientName}, por favor diríjase a ${notification.service ? notification.service.name : notification.billingPosition?.name}`;
+      speakWithPause(text, notification.ticket.ticketCode);
     }
-  };
+  }, [notification, playChime, speakWithPause]);
 
   useEffect(() => {
-    if (isVisible && notification && speechSynthesis.current && voicesLoaded) {
-      const handleUserInteraction = async () => {
-        await playChime();
-        const text = `${notification.ticket.patientName}, por favor diríjase a ${notification.service ? notification.service.name : notification.billingPosition?.name}.`;
-        speakWithPause(text, notification.ticket.ticketCode);
-        document.removeEventListener('click', handleUserInteraction);
-      };
-
-      document.addEventListener('click', handleUserInteraction);
-
-      return () => {
-        document.removeEventListener('click', handleUserInteraction);
-        if (speechSynthesis.current) {
-          speechSynthesis.current.cancel();
-        }
-      };
+    if (isVisible && notification) {
+      playNotification();
     }
-  }, [isVisible, notification, voicesLoaded]);
+    return () => {
+      cancel();
+    };
+  }, [isVisible, notification, playNotification, cancel]);
 
   useEffect(() => {
     if (isVisible && speechDuration > 0) {
       const timer = setTimeout(() => {
         onNotificationComplete();
-      }, speechDuration + 2000); // Add 2 seconds buffer
+      }, speechDuration + 7000); // Add 5 seconds buffer
 
       return () => clearTimeout(timer);
     }
   }, [isVisible, speechDuration, onNotificationComplete]);
 
-  const toggleSpeech = async () => {
-    if (speechSynthesis.current) {
-      if (isSpeaking) {
-        speechSynthesis.current.cancel();
-        setIsSpeaking(false);
-      } else if (notification && voicesLoaded) {
-        await playChime();
-        const text = `${notification.ticket.patientName}, por favor diríjase a ${notification.service ? notification.service.name : notification.billingPosition?.name}.`;
-        speakWithPause(text, notification.ticket.ticketCode);
-      }
+  const toggleSpeech = () => {
+    if (speaking) {
+      cancel();
+      setIsSpeaking(false);
+    } else {
+      playNotification();
     }
   };
 
