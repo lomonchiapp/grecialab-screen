@@ -19,6 +19,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ className }) => {
   const [notificationQueue, setNotificationQueue] = useState<Notification[]>([]);
   const [currentNotification, setCurrentNotification] = useState<Notification | null>(null);
   const [isNotificationVisible, setIsNotificationVisible] = useState(false);
+  //@ts-ignore
   const [aspectRatio, setAspectRatio] = useState<number>(16 / 9); // Default aspect ratio
 
   useEffect(() => {
