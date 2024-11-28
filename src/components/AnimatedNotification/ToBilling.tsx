@@ -1,16 +1,16 @@
 /* eslint-disable react/prop-types */
-import React from "react";
 import { Box, Typography } from "@mui/material";
 import Grid from "@mui/material/Grid2";
 import { CaretRight } from "@phosphor-icons/react";
 import { useScreenState } from "../../global/useScreenState";
+import { Notification } from "../../types/types";
 
-export const ToBilling = ({ notification }) => {
+export const ToBilling = ({ notification }: { notification: Notification }  ) => {
   const { tickets } = useScreenState();
 
   //Busca el ticket que corresponde a la notificación
   const ticket = tickets?.find(
-    (ticket) => ticket.id === (notification.ticketId || notification.ticket)
+    (ticket) => ticket.id === (notification.ticketId)
   );
 
   return (
@@ -21,11 +21,11 @@ export const ToBilling = ({ notification }) => {
         <Typography sx={styles.patientName}>{ticket?.patientName}</Typography>
       </Box>
       <Box>
-        <img style={styles.walkingIcon} src="walking.png" alt="walking" />
+        <img style={{ width: "80px", height: "auto" }} src="walking.png" alt="walking" />
       </Box>
       <Box sx={styles.arrows}>
-        <CaretRight size={140} style={styles.caret1} />
-        <CaretRight size={130} style={styles.caret2} />
+        <CaretRight size={140} color="#253880" />
+        <CaretRight size={130} color="#2F9BD6" />
       </Box>
       <Box sx={styles.billingBox}>
         <Typography sx={styles.billingLabel}>
@@ -36,7 +36,7 @@ export const ToBilling = ({ notification }) => {
         <Typography sx={styles.billingPosition}>
           {notification.service
             ? notification?.service.name
-            : notification?.billingPosition.name}
+            : notification?.billingPosition?.name}
         </Typography>
       </Box>
     </Grid>
@@ -62,16 +62,14 @@ const styles = {
     flexDirection: "row",
     alignItems: "center",
     width: "140px",
-  },
-  caret1: {
-    position: "absolute",
-    right: 20,
-    color: "#253880",
-  },
-  caret2: {
-    position: "absolute",
-    color: "#2F9BD6",
-    left: 20,
+    "& > svg:first-of-type": {
+      position: "absolute",
+      right: 20,
+    },
+    "& > svg:last-of-type": {
+      position: "absolute",
+      left: 20,
+    }
   },
   ticketBox: {
     display: "flex",
@@ -119,5 +117,9 @@ const styles = {
     borderRadius: "0.5rem",
     padding: "6px 9px",
     fontWeight: "bold",
+  },
+  walkingIcon: {
+    width: "80px",
+    height: "auto",
   },
 };
