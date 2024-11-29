@@ -115,3 +115,4 @@ export function useSpeechSynthesis(audioContextRef: MutableRefObject<AudioContex
 
   return { speak, cancel, speaking };
 }
+

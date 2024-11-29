@@ -18,6 +18,7 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
   onExited
 }) => {
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isAudioContextInitialized, setIsAudioContextInitialized] = useState(false); // Update 1
   const audioContext = useRef<AudioContext | null>(null);
   const retryCount = useRef(0);
   const maxRetries = 3;
@@ -29,6 +30,10 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
     if (!audioContext.current) {
       audioContext.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
+    if (audioContext.current.state === 'suspended') { // Update 2
+      audioContext.current.resume();
+    }
+    setIsAudioContextInitialized(true); // Update 2
   }, []);
 
   const playChime = useCallback(async () => {
@@ -122,15 +127,14 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
   }, [playChime, speakWithPause]);
 
   useEffect(() => {
-    if (isVisible && notification) {
-      initializeAudioContext();
+    if (isVisible && notification && isAudioContextInitialized) { // Update 3
       playNotification(notification);
     }
     return () => {
       cancel();
       setIsSpeaking(false);
     };
-  }, [isVisible, notification, playNotification, cancel, initializeAudioContext]);
+  }, [isVisible, notification, playNotification, cancel, isAudioContextInitialized]); // Update 3
 
   const repeatLastNotification = useCallback(() => {
     if (lastNotification.current && !isSpeaking) {
@@ -224,6 +228,16 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
           <Repeat size={24} />
         </button>
       </div>
+      {!isAudioContextInitialized && ( // Update 4
+        <div className="fixed top-4 right-4 z-50">
+          <button
+            onClick={initializeAudioContext}
+            className="px-4 py-2 bg-blue-500 text-white rounded-md shadow-lg hover:bg-blue-600 transition-colors duration-200"
+          >
+            Iniciar Notificaciones
+          </button>
+        </div>
+      )}
     </>
   );
 };
