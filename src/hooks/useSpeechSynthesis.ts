@@ -1,12 +1,13 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, MutableRefObject } from 'react';
 
 interface SpeechOptions {
+  onStart?: () => void;
   onEnd?: () => void;
   onError?: (event: SpeechSynthesisErrorEvent) => void;
   onInterrupted?: () => void;
 }
 
-export function useSpeechSynthesis() {
+export function useSpeechSynthesis(audioContextRef: MutableRefObject<AudioContext | null>) {
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [speaking, setSpeaking] = useState(false);
   const speechSynthesis = useRef<SpeechSynthesis | null>(null);
@@ -47,7 +48,7 @@ export function useSpeechSynthesis() {
   };
 
   const speak = useCallback((text: string, options?: SpeechOptions) => {
-    if (speechSynthesis.current) {
+    if (speechSynthesis.current && audioContextRef.current) {
       cancel();
 
       const processedText = preprocessText(text);
@@ -69,13 +70,24 @@ export function useSpeechSynthesis() {
         utterance.rate = 0.9 + (Math.random() * 0.2 - 0.1); // 0.8 to 1.0
         utterance.pitch = 1.0 + (Math.random() * 0.2 - 0.1); // 0.9 to 1.1
 
-        if (index === 0) utterance.onstart = () => setSpeaking(true);
+        utterance.onstart = () => {
+          setSpeaking(true);
+          options?.onStart?.();
+        };
+
+        utterance.addEventListener('start', () => {
+          if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+            audioContextRef.current.resume();
+          }
+        });
+
         if (index === sentences.length - 1) {
           utterance.onend = () => {
             setSpeaking(false);
             options?.onEnd?.();
           };
         }
+
         utterance.onerror = (event) => {
           console.error('Speech synthesis error:', event);
           setSpeaking(false);
@@ -90,9 +102,9 @@ export function useSpeechSynthesis() {
         speechSynthesis.current!.speak(utterance);
       });
     } else {
-      console.error('Speech synthesis not available');
+      console.error('Speech synthesis or AudioContext not available');
     }
-  }, [getLatinVoice]);
+  }, [getLatinVoice, audioContextRef]);
 
   const cancel = useCallback(() => {
     if (speechSynthesis.current) {
