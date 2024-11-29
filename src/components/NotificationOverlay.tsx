@@ -18,6 +18,7 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
 }) => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const lastNotification = useRef<Notification | null>(null);
 
   const initAudioContext = useCallback(() => {
@@ -53,49 +54,59 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
   }, [initAudioContext]);
 
   const speakText = useCallback((text: string) => {
-    const context = initAudioContext();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'es-ES';
-    utterance.rate = 0.9;
-    utterance.pitch = 1.0;
+    return new Promise<void>((resolve, reject) => {
+      const context = initAudioContext();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'es-ES';
+      utterance.rate = 0.9;
+      utterance.pitch = 1.0;
 
-    // Create a MediaStreamDestination to capture the speech audio
-    const destination = context.createMediaStreamDestination();
+      // Create a MediaStreamDestination to capture the speech audio
+      const destination = context.createMediaStreamDestination();
 
-    // Create an HTMLAudioElement to play the captured audio
-    const audio = new Audio();
-    audio.srcObject = destination.stream;
+      // Create an audio element to play the captured audio
+      const audioElement = new Audio();
+      audioElement.srcObject = destination.stream;
+      audioElementRef.current = audioElement;
 
-    utterance.onstart = () => {
-      setIsSpeaking(true);
-      audio.play();
-    };
+      utterance.onstart = () => {
+        setIsSpeaking(true);
+        audioElement.play().catch(error => console.error('Error playing audio:', error));
+      };
 
-    utterance.onend = () => {
-      setIsSpeaking(false);
-      audio.pause();
-      onNotificationComplete();
-    };
+      utterance.onend = () => {
+        setIsSpeaking(false);
+        audioElement.pause();
+        audioElement.srcObject = null;
+        resolve();
+      };
 
-    // Use the Web Speech API to generate speech
-    window.speechSynthesis.speak(utterance);
+      utterance.onerror = (event) => {
+        console.error('Speech synthesis error:', event);
+        reject(event);
+      };
 
-    // Connect the speech to the AudioContext
-    const source = context.createMediaStreamSource(destination.stream);
-    source.connect(context.destination);
+      // Use the Web Speech API to generate speech
+      window.speechSynthesis.speak(utterance);
 
-  }, [initAudioContext, onNotificationComplete]);
+      // Connect the speech to the AudioContext
+      const source = context.createMediaStreamSource(destination.stream);
+      source.connect(context.destination);
+    });
+  }, [initAudioContext]);
 
   const playNotification = useCallback(async (notif: Notification) => {
     try {
       await playChime();
       const text = `Atención. Número de ticket ${notif.ticket.ticketCode}. ${notif.ticket.patientName}, por favor diríjase a ${notif.service ? notif.service.name : notif.billingPosition?.name}`;
-      speakText(text);
+      await speakText(text);
+      onNotificationComplete();
     } catch (error) {
       console.error('Error playing notification:', error);
+      onNotificationComplete();
     }
     lastNotification.current = notif;
-  }, [playChime, speakText]);
+  }, [playChime, speakText, onNotificationComplete]);
 
   useEffect(() => {
     if (isVisible && notification) {
@@ -103,6 +114,10 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
     }
     return () => {
       window.speechSynthesis.cancel();
+      if (audioElementRef.current) {
+        audioElementRef.current.pause();
+        audioElementRef.current.srcObject = null;
+      }
       setIsSpeaking(false);
     };
   }, [isVisible, notification, playNotification]);
