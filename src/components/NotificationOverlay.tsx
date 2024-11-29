@@ -60,9 +60,6 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
       utterance.rate = 0.9;
       utterance.pitch = 1.0;
 
-      // Create a MediaStreamDestination to capture the speech audio
-      const destination = context.createMediaStreamDestination();
-
       utterance.onstart = () => setIsSpeaking(true);
       utterance.onend = () => {
         setIsSpeaking(false);
@@ -70,8 +67,12 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
       };
       utterance.onerror = (event) => {
         console.error('Speech synthesis error:', event);
+        setIsSpeaking(false);
         reject(event);
       };
+
+      // Create a MediaStreamDestination to capture the speech audio
+      const destination = context.createMediaStreamDestination();
 
       // Use the Web Speech API to generate speech
       window.speechSynthesis.speak(utterance);
