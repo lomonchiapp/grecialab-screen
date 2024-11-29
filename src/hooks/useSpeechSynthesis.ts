@@ -47,9 +47,14 @@ export function useSpeechSynthesis(audioContextRef: MutableRefObject<AudioContex
     return text;
   };
 
-  const speak = useCallback((text: string, options?: SpeechOptions) => {
+  const speak = useCallback(async (text: string, options?: SpeechOptions) => {
     if (speechSynthesis.current && audioContextRef.current) {
       cancel();
+
+      // Ensure AudioContext is in running state
+      if (audioContextRef.current.state === 'suspended') {
+        await audioContextRef.current.resume();
+      }
 
       const processedText = preprocessText(text);
       const sentences = processedText.match(/[^.!?]+[.!?]+/g) || [processedText];
@@ -74,12 +79,6 @@ export function useSpeechSynthesis(audioContextRef: MutableRefObject<AudioContex
           setSpeaking(true);
           options?.onStart?.();
         };
-
-        utterance.addEventListener('start', () => {
-          if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
-            audioContextRef.current.resume();
-          }
-        });
 
         if (index === sentences.length - 1) {
           utterance.onend = () => {
@@ -116,4 +115,3 @@ export function useSpeechSynthesis(audioContextRef: MutableRefObject<AudioContex
 
   return { speak, cancel, speaking };
 }
-

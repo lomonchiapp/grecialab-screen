@@ -29,13 +29,15 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
     if (!audioContext.current) {
       audioContext.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
-    return audioContext.current.state === 'suspended' ? audioContext.current.resume() : Promise.resolve();
   }, []);
 
   const playChime = useCallback(async () => {
     try {
-      await initializeAudioContext();
+      initializeAudioContext();
       if (audioContext.current) {
+        if (audioContext.current.state === 'suspended') {
+          await audioContext.current.resume();
+        }
         const oscillator = audioContext.current.createOscillator();
         const gainNode = audioContext.current.createGain();
 
@@ -121,19 +123,21 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
 
   useEffect(() => {
     if (isVisible && notification) {
+      initializeAudioContext();
       playNotification(notification);
     }
     return () => {
       cancel();
       setIsSpeaking(false);
     };
-  }, [isVisible, notification, playNotification, cancel]);
+  }, [isVisible, notification, playNotification, cancel, initializeAudioContext]);
 
   const repeatLastNotification = useCallback(() => {
     if (lastNotification.current && !isSpeaking) {
+      initializeAudioContext();
       playNotification(lastNotification.current);
     }
-  }, [isSpeaking, playNotification]);
+  }, [isSpeaking, playNotification, initializeAudioContext]);
 
   if (!notification && !lastNotification.current) return null;
 
