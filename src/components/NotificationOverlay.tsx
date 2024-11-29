@@ -18,24 +18,17 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
 }) => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const synthesisRef = useRef<SpeechSynthesis | null>(null);
   const lastNotification = useRef<Notification | null>(null);
 
-  useEffect(() => {
-    synthesisRef.current = window.speechSynthesis;
-    return () => {
-      if (synthesisRef.current) {
-        synthesisRef.current.cancel();
-      }
-    };
-  }, []);
-
-  const playChime = useCallback(() => {
+  const initAudioContext = useCallback(() => {
     if (!audioContextRef.current) {
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
+    return audioContextRef.current;
+  }, []);
 
-    const context = audioContextRef.current;
+  const playChime = useCallback(() => {
+    const context = initAudioContext();
     const oscillator = context.createOscillator();
     const gainNode = context.createGain();
 
@@ -57,22 +50,41 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
     return new Promise<void>((resolve) => {
       setTimeout(resolve, 500);
     });
-  }, []);
+  }, [initAudioContext]);
 
   const speakText = useCallback((text: string) => {
-    if (synthesisRef.current) {
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'es-ES';
-      utterance.rate = 0.9;
-      utterance.pitch = 1.0;
-      utterance.onstart = () => setIsSpeaking(true);
-      utterance.onend = () => {
-        setIsSpeaking(false);
-        onNotificationComplete();
-      };
-      synthesisRef.current.speak(utterance);
-    }
-  }, [onNotificationComplete]);
+    const context = initAudioContext();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'es-ES';
+    utterance.rate = 0.9;
+    utterance.pitch = 1.0;
+
+    // Create a MediaStreamDestination to capture the speech audio
+    const destination = context.createMediaStreamDestination();
+
+    // Create an HTMLAudioElement to play the captured audio
+    const audio = new Audio();
+    audio.srcObject = destination.stream;
+
+    utterance.onstart = () => {
+      setIsSpeaking(true);
+      audio.play();
+    };
+
+    utterance.onend = () => {
+      setIsSpeaking(false);
+      audio.pause();
+      onNotificationComplete();
+    };
+
+    // Use the Web Speech API to generate speech
+    window.speechSynthesis.speak(utterance);
+
+    // Connect the speech to the AudioContext
+    const source = context.createMediaStreamSource(destination.stream);
+    source.connect(context.destination);
+
+  }, [initAudioContext, onNotificationComplete]);
 
   const playNotification = useCallback(async (notif: Notification) => {
     try {
@@ -80,10 +92,7 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
       const text = `Atención. Número de ticket ${notif.ticket.ticketCode}. ${notif.ticket.patientName}, por favor diríjase a ${notif.service ? notif.service.name : notif.billingPosition?.name}`;
       speakText(text);
     } catch (error) {
-      console.error('Error playing chime:', error);
-      // Fallback to immediate speech synthesis if chime fails to play
-      const text = `Atención. Número de ticket ${notif.ticket.ticketCode}. ${notif.ticket.patientName}, por favor diríjase a ${notif.service ? notif.service.name : notif.billingPosition?.name}`;
-      speakText(text);
+      console.error('Error playing notification:', error);
     }
     lastNotification.current = notif;
   }, [playChime, speakText]);
@@ -93,9 +102,7 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
       playNotification(notification);
     }
     return () => {
-      if (synthesisRef.current) {
-        synthesisRef.current.cancel();
-      }
+      window.speechSynthesis.cancel();
       setIsSpeaking(false);
     };
   }, [isVisible, notification, playNotification]);
