@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Notification } from '@/types/types';
 import { ArrowRight, Repeat } from 'lucide-react';
-import { useSpeechSynthesis } from '@/hooks/useSpeechSynthesis';
 
 interface NotificationOverlayProps {
   notification: Notification | null;
@@ -18,130 +17,94 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
   onExited
 }) => {
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [isAudioContextInitialized, setIsAudioContextInitialized] = useState(false); // Update 1
-  const audioContext = useRef<AudioContext | null>(null);
-  const retryCount = useRef(0);
-  const maxRetries = 3;
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const synthesisRef = useRef<SpeechSynthesis | null>(null);
   const lastNotification = useRef<Notification | null>(null);
 
-  const { speak, cancel } = useSpeechSynthesis(audioContext);
-
-  const initializeAudioContext = useCallback(() => {
-    if (!audioContext.current) {
-      audioContext.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-    }
-    if (audioContext.current.state === 'suspended') { // Update 2
-      audioContext.current.resume();
-    }
-    setIsAudioContextInitialized(true); // Update 2
+  useEffect(() => {
+    synthesisRef.current = window.speechSynthesis;
+    return () => {
+      if (synthesisRef.current) {
+        synthesisRef.current.cancel();
+      }
+    };
   }, []);
 
-  const playChime = useCallback(async () => {
-    try {
-      initializeAudioContext();
-      if (audioContext.current) {
-        if (audioContext.current.state === 'suspended') {
-          await audioContext.current.resume();
-        }
-        const oscillator = audioContext.current.createOscillator();
-        const gainNode = audioContext.current.createGain();
-
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.current.destination);
-
-        oscillator.type = 'sine';
-        oscillator.frequency.setValueAtTime(880, audioContext.current.currentTime); // A5
-        oscillator.frequency.setValueAtTime(1318.5, audioContext.current.currentTime + 0.1); // E6
-        oscillator.frequency.setValueAtTime(1760, audioContext.current.currentTime + 0.2); // A6
-
-        gainNode.gain.setValueAtTime(0, audioContext.current.currentTime);
-        gainNode.gain.linearRampToValueAtTime(0.5, audioContext.current.currentTime + 0.01);
-        gainNode.gain.linearRampToValueAtTime(0, audioContext.current.currentTime + 0.5);
-
-        oscillator.start();
-        oscillator.stop(audioContext.current.currentTime + 0.5);
-      }
-    } catch (error) {
-      console.error('Error playing chime:', error);
+  const playChime = useCallback(() => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
-  }, [initializeAudioContext]);
 
-  const speakWithPause = useCallback((text: string, ticketCode: string) => {
-    const parts = [
-      { text: `Atención. Número de ticket ${ticketCode},`, pause: 1000 },
-      { text: `Repito, ${ticketCode},`, pause: 300 },
-      { text: text, pause: 0 }
-    ];
+    const context = audioContextRef.current;
+    const oscillator = context.createOscillator();
+    const gainNode = context.createGain();
 
-    const speakPart = (index: number) => {
-      if (index >= parts.length) {
+    oscillator.connect(gainNode);
+    gainNode.connect(context.destination);
+
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(880, context.currentTime); // A5
+    oscillator.frequency.setValueAtTime(1318.5, context.currentTime + 0.1); // E6
+    oscillator.frequency.setValueAtTime(1760, context.currentTime + 0.2); // A6
+
+    gainNode.gain.setValueAtTime(0, context.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.5, context.currentTime + 0.01);
+    gainNode.gain.linearRampToValueAtTime(0, context.currentTime + 0.5);
+
+    oscillator.start(context.currentTime);
+    oscillator.stop(context.currentTime + 0.5);
+
+    return new Promise<void>((resolve) => {
+      setTimeout(resolve, 500);
+    });
+  }, []);
+
+  const speakText = useCallback((text: string) => {
+    if (synthesisRef.current) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'es-ES';
+      utterance.rate = 0.9;
+      utterance.pitch = 1.0;
+      utterance.onstart = () => setIsSpeaking(true);
+      utterance.onend = () => {
         setIsSpeaking(false);
-        retryCount.current = 0;
         onNotificationComplete();
-        return;
-      }
-
-      const part = parts[index];
-      speak(part.text, {
-        onStart: () => {
-          if (index === 0) setIsSpeaking(true);
-        },
-        onEnd: () => {
-          if (index === parts.length - 1) {
-            setIsSpeaking(false);
-            retryCount.current = 0;
-            onNotificationComplete();
-          } else {
-            setTimeout(() => speakPart(index + 1), part.pause);
-          }
-        },
-        onError: (event) => {
-          console.error('Speech synthesis error:', event);
-          setIsSpeaking(false);
-          onNotificationComplete();
-        },
-        onInterrupted: () => {
-          if (retryCount.current < maxRetries) {
-            retryCount.current++;
-            console.log(`Speech interrupted. Retrying... (Attempt ${retryCount.current})`);
-            setTimeout(() => speakPart(index), 1000);
-          } else {
-            console.error('Max retries reached. Stopping speech synthesis.');
-            setIsSpeaking(false);
-            retryCount.current = 0;
-            onNotificationComplete();
-          }
-        }
-      });
-    };
-
-    speakPart(0);
-  }, [speak, onNotificationComplete]);
+      };
+      synthesisRef.current.speak(utterance);
+    }
+  }, [onNotificationComplete]);
 
   const playNotification = useCallback(async (notif: Notification) => {
-    await playChime();
-    await new Promise(resolve => setTimeout(resolve, 500)); // 500ms pause
-    const text = `${notif.ticket.patientName}, por favor diríjase a ${notif.service ? notif.service.name : notif.billingPosition?.name}`;
-    speakWithPause(text, notif.ticket.ticketCode);
+    try {
+      await playChime();
+      const text = `Atención. Número de ticket ${notif.ticket.ticketCode}. ${notif.ticket.patientName}, por favor diríjase a ${notif.service ? notif.service.name : notif.billingPosition?.name}`;
+      speakText(text);
+    } catch (error) {
+      console.error('Error playing chime:', error);
+      // Fallback to immediate speech synthesis if chime fails to play
+      const text = `Atención. Número de ticket ${notif.ticket.ticketCode}. ${notif.ticket.patientName}, por favor diríjase a ${notif.service ? notif.service.name : notif.billingPosition?.name}`;
+      speakText(text);
+    }
     lastNotification.current = notif;
-  }, [playChime, speakWithPause]);
+  }, [playChime, speakText]);
 
   useEffect(() => {
-    if (isVisible && notification && isAudioContextInitialized) { // Update 3
+    if (isVisible && notification) {
       playNotification(notification);
     }
     return () => {
-      cancel();
+      if (synthesisRef.current) {
+        synthesisRef.current.cancel();
+      }
       setIsSpeaking(false);
     };
-  }, [isVisible, notification, playNotification, cancel, isAudioContextInitialized]); // Update 3
+  }, [isVisible, notification, playNotification]);
 
   const repeatLastNotification = useCallback(() => {
     if (lastNotification.current && !isSpeaking) {
-      initializeAudioContext();
       playNotification(lastNotification.current);
     }
-  }, [isSpeaking, playNotification, initializeAudioContext]);
+  }, [isSpeaking, playNotification]);
 
   if (!notification && !lastNotification.current) return null;
 
@@ -228,16 +191,6 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
           <Repeat size={24} />
         </button>
       </div>
-      {!isAudioContextInitialized && ( // Update 4
-        <div className="fixed top-4 right-4 z-50">
-          <button
-            onClick={initializeAudioContext}
-            className="px-4 py-2 bg-blue-500 text-white rounded-md shadow-lg hover:bg-blue-600 transition-colors duration-200"
-          >
-            Iniciar Notificaciones
-          </button>
-        </div>
-      )}
     </>
   );
 };
