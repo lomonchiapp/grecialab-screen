@@ -18,7 +18,6 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
 }) => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const lastNotification = useRef<Notification | null>(null);
 
   const initAudioContext = useCallback(() => {
@@ -64,23 +63,11 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
       // Create a MediaStreamDestination to capture the speech audio
       const destination = context.createMediaStreamDestination();
 
-      // Create an audio element to play the captured audio
-      const audioElement = new Audio();
-      audioElement.srcObject = destination.stream;
-      audioElementRef.current = audioElement;
-
-      utterance.onstart = () => {
-        setIsSpeaking(true);
-        audioElement.play().catch(error => console.error('Error playing audio:', error));
-      };
-
+      utterance.onstart = () => setIsSpeaking(true);
       utterance.onend = () => {
         setIsSpeaking(false);
-        audioElement.pause();
-        audioElement.srcObject = null;
         resolve();
       };
-
       utterance.onerror = (event) => {
         console.error('Speech synthesis error:', event);
         reject(event);
@@ -89,8 +76,10 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
       // Use the Web Speech API to generate speech
       window.speechSynthesis.speak(utterance);
 
-      // Connect the speech to the AudioContext
+      // Create a MediaStreamAudioSourceNode from the MediaStream
       const source = context.createMediaStreamSource(destination.stream);
+
+      // Connect the source to the AudioContext destination
       source.connect(context.destination);
     });
   }, [initAudioContext]);
@@ -114,10 +103,6 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
     }
     return () => {
       window.speechSynthesis.cancel();
-      if (audioElementRef.current) {
-        audioElementRef.current.pause();
-        audioElementRef.current.srcObject = null;
-      }
       setIsSpeaking(false);
     };
   }, [isVisible, notification, playNotification]);
