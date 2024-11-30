@@ -7,9 +7,13 @@ const client = new TextToSpeechClient({
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'POST') {
-    try {
-      const { text, languageCode, name, ssmlGender } = req.body;
+    const { text, languageCode, name, ssmlGender } = req.body;
 
+    if (!text || !languageCode || !name || !ssmlGender) {
+      return res.status(400).json({ error: 'Missing required parameters' });
+    }
+
+    try {
       const [response] = await client.synthesizeSpeech({
         input: { text },
         voice: { languageCode, name, ssmlGender },
