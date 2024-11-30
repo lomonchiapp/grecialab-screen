@@ -19,42 +19,37 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
 }) => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
   const lastNotification = useRef<Notification | null>(null);
 
-  const { speak, loading, error: ttsError } = useGoogleTextToSpeech(audioContextRef);
+  const { speak, loading, error: ttsError } = useGoogleTextToSpeech();
 
-  const initAudioContext = useCallback(() => {
-    if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-    }
-    return audioContextRef.current;
-  }, []);
-
-  const playChime = useCallback(() => {
-    const context = initAudioContext();
-    const oscillator = context.createOscillator();
-    const gainNode = context.createGain();
+  const playChime = useCallback(async () => {
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
 
     oscillator.connect(gainNode);
-    gainNode.connect(context.destination);
+    gainNode.connect(audioContext.destination);
 
     oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(880, context.currentTime); // A5
-    oscillator.frequency.setValueAtTime(1318.5, context.currentTime + 0.1); // E6
-    oscillator.frequency.setValueAtTime(1760, context.currentTime + 0.2); // A6
+    oscillator.frequency.setValueAtTime(880, audioContext.currentTime); // A5
+    oscillator.frequency.setValueAtTime(1318.5, audioContext.currentTime + 0.1); // E6
+    oscillator.frequency.setValueAtTime(1760, audioContext.currentTime + 0.2); // A6
 
-    gainNode.gain.setValueAtTime(0, context.currentTime);
-    gainNode.gain.linearRampToValueAtTime(0.5, context.currentTime + 0.01);
-    gainNode.gain.linearRampToValueAtTime(0, context.currentTime + 0.5);
+    gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.5, audioContext.currentTime + 0.01);
+    gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.5);
 
-    oscillator.start(context.currentTime);
-    oscillator.stop(context.currentTime + 0.5);
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.5);
 
     return new Promise<void>((resolve) => {
-      setTimeout(resolve, 500);
+      setTimeout(() => {
+        audioContext.close();
+        resolve();
+      }, 500);
     });
-  }, [initAudioContext]);
+  }, []);
 
   const playNotification = useCallback(async (notif: Notification) => {
     try {
@@ -92,7 +87,7 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
 
   useEffect(() => {
     if (ttsError) {
-      setError(ttsError);
+      setError(ttsError.message);
     }
   }, [ttsError]);
 

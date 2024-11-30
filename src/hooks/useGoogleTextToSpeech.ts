@@ -1,4 +1,4 @@
-import { useState, useCallback, MutableRefObject } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 
 interface TextToSpeechOptions {
   languageCode?: string;
@@ -9,12 +9,40 @@ interface TextToSpeechOptions {
 interface SpeechOptions {
   onStart?: () => void;
   onEnd?: () => void;
-  onError?: (error: any) => void;
+  onError?: (error: Error) => void;
 }
 
-export function useGoogleTextToSpeech(audioContextRef: MutableRefObject<AudioContext | null>) {
+export function useGoogleTextToSpeech() {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Error | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const silentAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const initializeAudio = useCallback(() => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+
+    if (!silentAudioRef.current) {
+      silentAudioRef.current = new Audio();
+      silentAudioRef.current.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+      silentAudioRef.current.loop = true;
+      silentAudioRef.current.play().catch(error => console.error('Silent audio play failed:', error));
+    }
+  }, []);
+
+  useEffect(() => {
+    initializeAudio();
+    return () => {
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
+      if (silentAudioRef.current) {
+        silentAudioRef.current.pause();
+        silentAudioRef.current.src = '';
+      }
+    };
+  }, [initializeAudio]);
 
   const speak = useCallback(async (text: string, options?: SpeechOptions, ttsOptions?: TextToSpeechOptions) => {
     setLoading(true);
@@ -47,10 +75,6 @@ export function useGoogleTextToSpeech(audioContextRef: MutableRefObject<AudioCon
 
       const context = audioContextRef.current;
       
-      if (context.state === 'suspended') {
-        await context.resume();
-      }
-
       options?.onStart?.();
 
       const audioBuffer = await context.decodeAudioData(audioContent);
@@ -66,12 +90,12 @@ export function useGoogleTextToSpeech(audioContextRef: MutableRefObject<AudioCon
       source.start(0);
     } catch (err) {
       console.error('Error in text-to-speech:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
-      setError(errorMessage);
-      options?.onError?.(errorMessage);
+      const error = err instanceof Error ? err : new Error('Unknown error occurred');
+      setError(error);
+      options?.onError?.(error);
       setLoading(false);
     }
-  }, [audioContextRef]);
+  }, []);
 
   return { speak, loading, error };
 }
