@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Notification } from '@/types/types';
 import { ArrowRight, Repeat } from 'lucide-react';
+import { useGoogleTextToSpeech } from '../hooks/useGoogleTextToSpeech';
 
 interface NotificationOverlayProps {
   notification: Notification | null;
@@ -17,8 +18,11 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
   onExited
 }) => {
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const lastNotification = useRef<Notification | null>(null);
+
+  const { speak, loading, error: ttsError } = useGoogleTextToSpeech(audioContextRef);
 
   const initAudioContext = useCallback(() => {
     if (!audioContextRef.current) {
@@ -52,61 +56,45 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
     });
   }, [initAudioContext]);
 
-  const speakText = useCallback((text: string) => {
-    return new Promise<void>((resolve, reject) => {
-      const context = initAudioContext();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'es-ES';
-      utterance.rate = 0.9;
-      utterance.pitch = 1.0;
-
-      utterance.onstart = () => setIsSpeaking(true);
-      utterance.onend = () => {
-        setIsSpeaking(false);
-        resolve();
-      };
-      utterance.onerror = (event) => {
-        console.error('Speech synthesis error:', event);
-        setIsSpeaking(false);
-        reject(event);
-      };
-
-      // Create a MediaStreamDestination to capture the speech audio
-      const destination = context.createMediaStreamDestination();
-
-      // Use the Web Speech API to generate speech
-      window.speechSynthesis.speak(utterance);
-
-      // Create a MediaStreamAudioSourceNode from the MediaStream
-      const source = context.createMediaStreamSource(destination.stream);
-
-      // Connect the source to the AudioContext destination
-      source.connect(context.destination);
-    });
-  }, [initAudioContext]);
-
   const playNotification = useCallback(async (notif: Notification) => {
     try {
       await playChime();
       const text = `Atención. Número de ticket ${notif.ticket.ticketCode}. ${notif.ticket.patientName}, por favor diríjase a ${notif.service ? notif.service.name : notif.billingPosition?.name}`;
-      await speakText(text);
-      onNotificationComplete();
+      await speak(text, {
+        onStart: () => setIsSpeaking(true),
+        onEnd: () => {
+          setIsSpeaking(false);
+          onNotificationComplete();
+        },
+        onError: (error) => {
+          console.error('Speech synthesis error:', error);
+          setError('Error en la síntesis de voz');
+          setIsSpeaking(false);
+          onNotificationComplete();
+        }
+      });
     } catch (error) {
       console.error('Error playing notification:', error);
-      onNotificationComplete();
+      setError('Error al reproducir la notificación');
     }
     lastNotification.current = notif;
-  }, [playChime, speakText, onNotificationComplete]);
+  }, [playChime, speak, onNotificationComplete]);
 
   useEffect(() => {
     if (isVisible && notification) {
       playNotification(notification);
     }
     return () => {
-      window.speechSynthesis.cancel();
       setIsSpeaking(false);
+      setError(null);
     };
   }, [isVisible, notification, playNotification]);
+
+  useEffect(() => {
+    if (ttsError) {
+      setError(ttsError);
+    }
+  }, [ttsError]);
 
   const repeatLastNotification = useCallback(() => {
     if (lastNotification.current && !isSpeaking) {
@@ -184,6 +172,12 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
                       : notification.billingPosition?.name}
                   </span>
                 </div>
+                
+                {error && (
+                  <div className="mt-4 p-2 bg-red-500 text-white rounded">
+                    Error: {error}
+                  </div>
+                )}
               </div>
             </div>
           </motion.div>
@@ -194,7 +188,7 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
           onClick={repeatLastNotification}
           className="p-3 bg-green-500 text-white rounded-full shadow-lg hover:bg-green-600 transition-colors duration-200"
           aria-label="Repetir última notificación"
-          disabled={isSpeaking}
+          disabled={isSpeaking || loading}
         >
           <Repeat size={24} />
         </button>
