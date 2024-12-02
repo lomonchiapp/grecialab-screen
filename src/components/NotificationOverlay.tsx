@@ -31,6 +31,17 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
     return audioContextRef.current;
   }, []);
 
+  useEffect(() => {
+    const context = initAudioContext();
+    if (context.state === 'suspended') {
+      context.resume().then(() => {
+        console.log('AudioContext resumed');
+      }).catch((error) => {
+        console.error('Error resuming AudioContext:', error);
+      });
+    }
+  }, [initAudioContext]);
+
   const playChime = useCallback(() => {
     const context = initAudioContext();
     const oscillator = context.createOscillator();
