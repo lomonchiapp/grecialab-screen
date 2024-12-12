@@ -4,8 +4,6 @@ import { QueueSlider } from "@/components/QueueSlider"
 import { BillingList } from "@/components/BillingList"
 import { cn } from "@/lib/utils"
 import { lightTheme, darkTheme } from "@/lib/theme"
-import { Moon, Sun } from 'lucide-react'
-import { Button } from "@/components/ui/button"
 import { useScreenState } from "@/global/useScreenState"
 
 interface ScreenProps extends React.HTMLAttributes<HTMLDivElement> {

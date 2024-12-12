@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Screen } from '@/Screen';
 import { useScreenState } from '@/global/useScreenState';
 import { Notification } from '@/types/types';
+import { updateDoc, doc } from 'firebase/firestore';
+import { database } from '@/firebase';
 
 function App() {
   const { 
@@ -37,19 +39,38 @@ function App() {
   useEffect(() => {
     const unprocessedNotifications = notifications.filter(notification => !notification.seen);
     if (unprocessedNotifications.length > 0) {
-      setCurrentNotification(unprocessedNotifications[0]);
+      const notificationToShow = unprocessedNotifications[0];
+      setCurrentNotification(notificationToShow);
       setIsNotificationVisible(true);
       
       const timer = setTimeout(() => {
         setIsNotificationVisible(false);
-        setCurrentNotification(null);
-        // Here you should mark the notification as seen in your database
+        
+        // Separar la actualización de la base de datos del cierre de la notificación
+        if (notificationToShow.id) {
+          updateNotificationSeen(notificationToShow.id);
+        }
+        
+        // Limpiar la notificación actual un poco después
+        setTimeout(() => {
+          setCurrentNotification(null);
+        }, 500); // Pequeño retraso para suavizar la transición
       }, 5500);
-
+  
       return () => clearTimeout(timer);
     }
   }, [notifications]);
-
+  
+  // Función para actualizar solo el campo seen
+  const updateNotificationSeen = async (notificationId: string) => {
+    try {
+      await updateDoc(doc(database, 'notifications', notificationId), {
+        seen: true
+      });
+    } catch (error) {
+      console.error("Error updating notification seen status:", error);
+    }
+  };
   return (
     <div className="w-full h-full">
       <Screen 
