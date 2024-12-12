@@ -6,11 +6,13 @@ import { cn } from "@/lib/utils"
 import { lightTheme, darkTheme } from "@/lib/theme"
 import { useScreenState } from "@/global/useScreenState"
 
-interface ScreenProps extends React.HTMLAttributes<HTMLDivElement> {
+interface ScreenProps {
   className?: string
+  currentNotification: Notification | null
+  isNotificationVisible: boolean
 }
 
-export const Screen: React.FC<ScreenProps> = ({ className, ...props }) => {
+export const Screen: React.FC<ScreenProps> = ({ className, currentNotification, isNotificationVisible, ...props }) => {
   const [isDarkMode, setIsDarkMode] = useState(false)
   const { tickets } = useScreenState()
   const [hasActiveTickets, setHasActiveTickets] = useState(false)

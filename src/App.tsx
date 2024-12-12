@@ -64,7 +64,8 @@ function App() {
   // Función para actualizar solo el campo seen
   const updateNotificationSeen = async (notificationId: string) => {
     try {
-      await updateDoc(doc(database, 'notifications', notificationId), {
+      const notificationRef = doc(database, 'notifications', notificationId);
+      await updateDoc(notificationRef, {
         seen: true
       });
     } catch (error) {
