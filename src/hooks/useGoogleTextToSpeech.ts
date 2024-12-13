@@ -28,8 +28,8 @@ export function useGoogleTextToSpeech(audioContextRef: MutableRefObject<AudioCon
         },
         body: JSON.stringify({
           text,
-          languageCode: ttsOptions?.languageCode || 'es-ES',
-          name: ttsOptions?.name || 'es-ES-Standard-A',
+          languageCode: ttsOptions?.languageCode || 'es-MX',
+          name: ttsOptions?.name || 'es-MX-Standard-A',
           ssmlGender: ttsOptions?.ssmlGender || 'FEMALE',
         }),
       });
