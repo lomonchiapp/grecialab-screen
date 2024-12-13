@@ -28,7 +28,7 @@ export function useGoogleTextToSpeech(audioContextRef: MutableRefObject<AudioCon
         },
         body: JSON.stringify({
           text,
-          languageCode: ttsOptions?.languageCode || 'es-MX',
+          languageCode: ttsOptions?.languageCode || 'es-ES',
           name: ttsOptions?.name || 'es-ES-Standard-A',
           ssmlGender: ttsOptions?.ssmlGender || 'FEMALE',
         }),
