@@ -29,7 +29,7 @@ export function useGoogleTextToSpeech(audioContextRef: MutableRefObject<AudioCon
         body: JSON.stringify({
           text,
           languageCode: ttsOptions?.languageCode || 'es-MX',
-          name: ttsOptions?.name || 'es-MX-Standard-A',
+          name: ttsOptions?.name || 'es-ES-Standard-A',
           ssmlGender: ttsOptions?.ssmlGender || 'FEMALE',
         }),
       });
